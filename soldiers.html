@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>עדכון רכב - פלוגה</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: { colors: { mainBg: '#1e293b', accent: '#38bdf8' } } }
+        }
+    </script>
+    <style>body { background-color: #0f172a; color: white; }</style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <div class="bg-mainBg w-full max-w-md p-8 rounded-2xl shadow-[0_0_20px_rgba(56,189,248,0.2)] border border-slate-700 text-center">
+        <h2 class="text-2xl font-bold text-accent mb-2">רישום רכב לפלוגה</h2>
+        <p class="text-slate-400 text-sm mb-6">הזן את פרטיך. הרכב יתווסף למאגר הש"ג ולא ימחק רכבים קודמים.</p>
+
+        <div class="space-y-5 text-right">
+            <div>
+                <label class="block text-sm font-semibold mb-1 text-slate-300">שם ושם משפחה</label>
+                <input type="text" id="soldierName" placeholder="למשל: נעם אריאל" class="w-full p-4 bg-slate-800 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent">
+            </div>
+            <div>
+                <label class="block text-sm font-semibold mb-1 text-slate-300">מספר אישי (לזיהוי במערכת)</label>
+                <input type="number" id="soldierId" placeholder="הכנס מספר אישי" class="w-full p-4 bg-slate-800 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent">
+            </div>
+            <div>
+                <label class="block text-sm font-semibold mb-1 text-slate-300">מספר רכב</label>
+                <input type="number" id="carNum" placeholder="ללא רווחים ומקפים" class="w-full p-4 bg-slate-800 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent">
+            </div>
+            
+            <button onclick="submitCar()" class="w-full bg-accent text-[#0f172a] py-4 rounded-xl font-bold text-lg hover:bg-sky-400 transition mt-2">שלח למאגר הש"ג</button>
+        </div>
+        
+        <div id="successMsg" class="hidden mt-4 bg-green-900/50 text-green-400 p-3 rounded border border-green-700 text-sm">
+            הנתונים נשלחו בהצלחה!
+        </div>
+    </div>
+
+    <script>
+        function submitCar() {
+            const name = document.getElementById('soldierName').value;
+            const id = document.getElementById('soldierId').value;
+            const car = document.getElementById('carNum').value;
+            
+            if(!name || !id || !car) {
+                alert("נא למלא את כל השדות.");
+                return;
+            }
+            
+            // כאן בהמשך תחווט קריאה לפיירבייס
+            document.getElementById('successMsg').classList.remove('hidden');
+            setTimeout(() => {
+                document.getElementById('soldierName').value = '';
+                document.getElementById('soldierId').value = '';
+                document.getElementById('carNum').value = '';
+                document.getElementById('successMsg').classList.add('hidden');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מערכת זיהוי כניסות</title>
+    <!-- טעינת העיצוב -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#E0F2FE', // תכלת בהיר
+                        secondary: '#0284C7', // כחול עמוק
+                        success: '#22C55E', // ירוק הצלחה
+                        bgLight: '#F8FAFC', // רקע כללי
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #F8FAFC; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body class="text-gray-800 font-sans">
+
+    <!-- סרגל עליון (ניווט) -->
+    <nav class="bg-secondary text-white p-4 shadow-md">
+        <div class="max-w-4xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <h1 class="text-2xl font-bold">מערכת ש"ג וזיהוי</h1>
+            <div class="flex gap-2">
+                <button onclick="switchTab('guardTab')" class="bg-primary text-secondary px-4 py-2 rounded font-semibold hover:bg-blue-200 transition">שומרים (פלוגה)</button>
+                <button onclick="switchTab('guestTab')" class="bg-primary text-secondary px-4 py-2 rounded font-semibold hover:bg-blue-200 transition">אורחים מזדמנים</button>
+                <button onclick="switchTab('selfUpdateTab')" class="bg-primary text-secondary px-4 py-2 rounded font-semibold hover:bg-blue-200 transition">עדכון רכב (חיילים)</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- תוכן מרכזי -->
+    <main class="max-w-4xl mx-auto p-4 mt-6">
+
+        <!-- מסך 1: שומרים - חיפוש בפלוגה -->
+        <div id="guardTab" class="tab-content active bg-white p-6 rounded-lg shadow-lg border-t-4 border-secondary">
+            <h2 class="text-xl font-bold mb-4 text-secondary">בדיקת רכב / חייל בשער</h2>
+            <div class="flex gap-2 mb-6">
+                <input type="text" id="searchInput" placeholder="הכנס מספר רכב או שם לחיפוש..." class="w-full p-3 border border-gray-300 rounded focus:outline-none focus:border-secondary">
+                <button onclick="searchPerson()" class="bg-secondary text-white px-6 py-3 rounded font-bold hover:bg-blue-700 transition">חפש</button>
+            </div>
+            
+            <!-- אזור התוצאה -->
+            <div id="searchResult" class="hidden bg-primary p-4 rounded mt-4">
+                <p class="font-bold text-lg mb-2" id="resultName"></p>
+                <p class="mb-4 text-sm text-gray-700">שאלת אימות: <span id="authQuestion" class="font-bold"></span></p>
+                
+                <div class="bg-white p-4 rounded border mb-4">
+                    <p class="mb-2 font-semibold text-sm">הוספת רכב חדש לחייל זה:</p>
+                    <div class="flex gap-2">
+                        <input type="text" id="newCarInput" placeholder="מספר רכב (ללא מקפים)" class="w-full p-2 border rounded text-sm">
+                        <button onclick="addNewCarToPerson()" class="bg-success text-white px-4 py-2 rounded font-bold hover:bg-green-600">הוסף</button>
+                    </div>
+                </div>
+                
+                <button onclick="approveEntry()" class="w-full bg-success text-white py-3 rounded font-bold text-lg hover:bg-green-600 transition">אמת כניסה ושמור ביומן</button>
+            </div>
+        </div>
+
+        <!-- מסך 2: אורחים מזדמנים -->
+        <div id="guestTab" class="tab-content bg-white p-6 rounded-lg shadow-lg border-t-4 border-success">
+            <h2 class="text-xl font-bold mb-4 text-secondary">רישום אורח / גורם חוץ</h2>
+            <p class="text-sm text-gray-600 mb-4">הכנסת נתונים אלו תפתח לאורח כרטיס חדש ותתעד את כניסתו ביומן באופן אוטומטי.</p>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold mb-1">שם מלא</label>
+                    <input type="text" id="guestName" class="w-full p-3 border rounded focus:border-secondary focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-1">מספר רכב</label>
+                    <input type="text" id="guestCar" class="w-full p-3 border rounded focus:border-secondary focus:outline-none">
+                </div>
+                <button onclick="registerGuest()" class="w-full bg-success text-white py-3 rounded font-bold text-lg mt-4 hover:bg-green-600 transition">רשום כניסת אורח</button>
+            </div>
+        </div>
+
+        <!-- מסך 3: עדכון עצמי לחיילים -->
+        <div id="selfUpdateTab" class="tab-content bg-white p-6 rounded-lg shadow-lg border-t-4 border-primary">
+            <h2 class="text-xl font-bold mb-4 text-secondary">טופס עדכון רכב - חיילי הפלוגה</h2>
+            <p class="text-sm text-gray-600 mb-4">חייל יקר, אנא הזן את פרטיך כדי לעדכן את המערכת. רכבים קיימים לא יימחקו.</p>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold mb-1">שם מלא (או מספר אישי)</label>
+                    <input type="text" id="selfName" class="w-full p-3 border rounded focus:border-secondary focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-1">מספר רכב (ספרות בלבד)</label>
+                    <input type="text" id="selfCar" class="w-full p-3 border rounded focus:border-secondary focus:outline-none">
+                </div>
+                <button onclick="selfUpdateCar()" class="w-full bg-secondary text-white py-3 rounded font-bold text-lg mt-4 hover:bg-blue-700 transition">עדכן את המערכת</button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- סקריפטים ולוגיקה -->
+    <script type="module">
+        // 1. ייבוא ספריות פיירבייס מ-CDN
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, query, where, getDocs, updateDoc, doc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+        // ==============================================================================
+        // שים לב: כאן תצטרך להדביק בהמשך את קוד ה-Config שתעתיק מפיירבייס!
+        // כרגע הקוד "מנותק" כדי שהמסכים יעבדו מבחינה ויזואלית.
+        // ==============================================================================
+        /*
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            // ...
+        };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        */
+
+        // פונקציית ניווט בין מסכים
+        window.switchTab = function(tabId) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+        }
+
+        // פונקציית דמו לחיפוש בשער
+        window.searchPerson = function() {
+            const input = document.getElementById('searchInput').value;
+            if(!input) { alert("נא להזין ערך לחיפוש"); return; }
+            
+            // כאן בהמשך נכניס את השאילתה מול Firebase.
+            // כרגע אנחנו מציגים תצוגת דמו כדי שתראה איך זה ייראה:
+            document.getElementById('searchResult').classList.remove('hidden');
+            document.getElementById('resultName').innerText = "נמצא: " + input + " (פלוגה אורגנית)";
+            document.getElementById('authQuestion').innerText = "מהי עיר המגורים שלך?"; 
+        }
+
+        window.approveEntry = function() {
+            alert("הכניסה אושרה ותועדה ביומן בהצלחה!");
+            document.getElementById('searchResult').classList.add('hidden');
+            document.getElementById('searchInput').value = '';
+        }
+
+        window.addNewCarToPerson = function() {
+            const car = document.getElementById('newCarInput').value;
+            if(!car) return;
+            alert("רכב שמספרו " + car + " נוסף בהצלחה למאגר תחת החייל.");
+            document.getElementById('newCarInput').value = '';
+        }
+
+        window.registerGuest = function() {
+            const name = document.getElementById('guestName').value;
+            const car = document.getElementById('guestCar').value;
+            if(!name || !car) { alert("נא למלא שם ומספר רכב"); return; }
+            alert("האורח " + name + " נרשם במערכת ונפתח לו כרטיס!");
+            document.getElementById('guestName').value = '';
+            document.getElementById('guestCar').value = '';
+        }
+
+        window.selfUpdateCar = function() {
+            const name = document.getElementById('selfName').value;
+            const car = document.getElementById('selfCar').value;
+            if(!name || !car) { alert("חסרים פרטים בטופס"); return; }
+            alert("תודה " + name + ", הרכב עודכן במערכת בהצלחה!");
+            document.getElementById('selfName').value = '';
+            document.getElementById('selfCar').value = '';
+        }
+    </script>
+</body>
+</html>

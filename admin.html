@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>העלאת נתוני פלוגה</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-xl mx-auto bg-white p-6 rounded-lg shadow-md">
+        <h1 class="text-2xl font-bold mb-4 text-blue-600">יבוא אלפון רביד.xlsx למאגר</h1>
+        <input type="file" id="fileUpload" accept=".xlsx" class="mb-4 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+        <p id="status" class="font-bold text-gray-700 mt-4"></p>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyB89Uiy2id8pEOxRZEmPaIq94wHaNybOYw",
+            authDomain: "gate-app-a8c86.firebaseapp.com",
+            projectId: "gate-app-a8c86",
+            storageBucket: "gate-app-a8c86.firebasestorage.app",
+            messagingSenderId: "127100922909",
+            appId: "1:127100922909:web:9d2f17bd83af386d14eaf4"
+        };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        document.getElementById('fileUpload').addEventListener('change', (e) => {
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                const workbook = XLSX.read(evt.target.result, {type: 'binary'});
+                const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                uploadData(data);
+            };
+            reader.readAsBinaryString(e.target.files[0]);
+        });
+
+        async function uploadData(data) {
+            const status = document.getElementById('status');
+            status.innerText = "טוען נתונים לפיירבייס, נא להמתין...";
+            let count = 0;
+            
+            for(let row of data) {
+                if(!row['שם משפחה'] || row['שם משפחה'] === 'סה"כ') continue;
+                
+                const id = String(row['מספר אישי'] || row['תעודת זהות'] || `temp_${count}`);
+                
+                // המרת תאריך לידה מאקסל במידת הצורך
+                let bdate = row['תאריך לידה'];
+                if(typeof bdate === 'number') {
+                    const date = new Date(Math.round((bdate - 25569)*86400*1000));
+                    bdate = date.toLocaleDateString('he-IL');
+                }
+
+                const soldier = {
+                    id: id,
+                    tz: String(row['תעודת זהות'] || ''),
+                    firstName: String(row['שם פרטי'] || ''),
+                    lastName: String(row['שם משפחה'] || ''),
+                    fullName: `${row['שם פרטי'] || ''} ${row['שם משפחה'] || ''}`.trim(),
+                    role: String(row['עיסוק מיועד'] || ''),
+                    phone: String(row['מספר טלפון נייד עיקרי'] || ''),
+                    birthDate: String(bdate || ''),
+                    city: String(row['כתובת עיקרית - עיר'] || ''),
+                    type: 'pluga',
+                    cars: [] 
+                };
+
+                try {
+                    await setDoc(doc(db, "pluga_members", id), soldier);
+                    count++;
+                } catch(e) { console.error(e); }
+            }
+            status.innerText = `העלאה הסתיימה! ${count} כרטיסי חיילים נוצרו בהצלחה.`;
+        }
+    </script>
+</body>
+</html>

@@ -8,23 +8,22 @@
     <script>
         tailwind.config = { theme: { extend: { colors: { mainBg: '#1e293b', accent: '#38bdf8' } } } }
     </script>
-    <style>
-        body { background-color: #0f172a; color: white; font-family: system-ui, sans-serif; }
-    </style>
+    <style> body { background-color: #0f172a; color: white; font-family: system-ui, sans-serif; } </style>
 </head>
 <body class="flex items-center justify-center min-h-screen p-4">
 
     <div class="bg-mainBg w-full max-w-md p-8 rounded-2xl shadow-[0_0_20px_rgba(56,189,248,0.2)] border border-slate-700 text-center">
         <h2 class="text-2xl font-bold text-accent mb-2">רישום רכב לפלוגה</h2>
-        <p class="text-slate-400 text-sm mb-6">בחר את שמך מהרשימה והזן את מספר הרכב שלך.</p>
+        <p class="text-slate-400 text-sm mb-6">התחל להקליד את שמך בשורת החיפוש ובחר מתוך הרשימה.</p>
 
         <div class="space-y-5 text-right">
             <div>
-                <label class="block text-sm font-semibold mb-1 text-slate-300">בחר שם מלא:</label>
-                <!-- רשימה נפתחת שנטענת אוטומטית -->
-                <select id="soldierSelect" class="w-full p-4 bg-slate-800 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent">
-                    <option value="">טוען רשימת חיילים מהענן... ⏳</option>
-                </select>
+                <label class="block text-sm font-semibold mb-1 text-slate-300">חפש ובחר שם מלא:</label>
+                <!-- שימוש ב-datalist מאפשר חיפוש והקלדה חכמה -->
+                <input list="soldiersList" id="soldierInput" placeholder="הקש לחיפוש השם שלך..." class="w-full p-4 bg-slate-800 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent">
+                <datalist id="soldiersList">
+                    <!-- הרשימה תתמלא אוטומטית -->
+                </datalist>
             </div>
             
             <div>
@@ -55,48 +54,47 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // טעינת שמות החיילים ברגע שהדף עולה
         async function loadSoldiers() {
-            const selectElement = document.getElementById('soldierSelect');
+            const listElement = document.getElementById('soldiersList');
             try {
                 const snap = await getDocs(collection(db, "pluga_members"));
                 let soldiers = [];
                 snap.forEach(doc => soldiers.push(doc.data()));
                 
-                // סידור הרשימה לפי א"ב
                 soldiers.sort((a, b) => a.fullName.localeCompare(b.fullName, 'he'));
                 
-                let html = '<option value="">-- בחר את שמך מהרשימה --</option>';
+                let html = '';
                 soldiers.forEach(s => {
-                    html += `<option value="${s.id}">${s.fullName}</option>`;
+                    // שומרים את המזהה בתוך סוגריים מוסתרים חלקית כדי שנוכל לחלץ אותו
+                    html += `<option value="${s.fullName} (${s.id})"></option>`;
                 });
                 
-                selectElement.innerHTML = html;
-            } catch(e) {
-                selectElement.innerHTML = '<option value="">שגיאה בטעינת הרשימה. פנה לקצין</option>';
-                console.error(e);
-            }
+                listElement.innerHTML = html;
+            } catch(e) { console.error(e); }
         }
         
-        loadSoldiers(); // קריאה לפונקציה מיד
+        loadSoldiers();
 
-        // שליחת הטופס
         document.getElementById('submitBtn').addEventListener('click', async () => {
-            const selectedId = document.getElementById('soldierSelect').value;
+            const inputValue = document.getElementById('soldierInput').value.trim();
             const car = document.getElementById('carNum').value.trim();
             
-            if(!selectedId) { alert("חובה לבחור שם מהרשימה."); return; }
+            // חילוץ המספר האישי מתוך הסוגריים
+            const match = inputValue.match(/\((.*?)\)/);
+            if(!match) { 
+                alert("נא לבחור את השם המדויק מתוך הרשימה שקופצת."); 
+                return; 
+            }
+            
+            const selectedId = match[1];
             if(!car) { alert("חובה להזין מספר רכב."); return; }
             
             try {
-                // עדכון הרכב תחת כרטיס החייל המדויק
                 const soldierRef = doc(db, "pluga_members", selectedId);
                 await updateDoc(soldierRef, { cars: arrayUnion(car) });
                 
                 document.getElementById('successMsg').classList.remove('hidden');
-                
-                // איפוס מספר הרכב (השם נשאר במקרה והוא רוצה להוסיף עוד רכב)
-                document.getElementById('carNum').value = '';
+                document.getElementById('carNum').value = ''; // איפוס 
                 
                 setTimeout(() => {
                     document.getElementById('successMsg').classList.add('hidden');

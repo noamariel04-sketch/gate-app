@@ -2,103 +2,110 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>העלאת נתוני פלוגה - חלונית חכמה</title>
+    <title>העלאת נתוני פלוגה - חיבור ישיר מול גוגל</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- שיניתי את ספק ספריית קריאת האקסל לאחד יציב יותר -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body class="bg-gray-100 p-8">
-    <div class="max-w-xl mx-auto bg-white p-6 rounded-lg shadow-md">
-        <h1 class="text-2xl font-bold mb-4 text-blue-600">יבוא אלפון רביד למאגר</h1>
+    <div class="max-w-xl mx-auto bg-white p-6 rounded-lg shadow-md border-t-4 border-blue-500">
+        <h1 class="text-2xl font-bold mb-4 text-blue-600">יבוא נתונים מוגן (API)</h1>
         <input type="file" id="fileUpload" accept=".xlsx, .xls" class="mb-4 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
         
-        <p id="status" class="font-bold text-gray-700 mt-4 text-lg"></p>
-        <!-- כאן תופיע הודעת השגיאה המדויקת במידה ותהיה כזו -->
-        <p id="errorBox" class="text-red-600 mt-4 text-sm font-mono font-bold bg-red-50 p-2 rounded hidden"></p> 
+        <p id="status" class="font-bold text-gray-700 mt-4 text-xl"></p>
+        <div id="errorBox" class="text-red-600 mt-4 text-sm font-mono font-bold bg-red-50 p-4 rounded border border-red-200 hidden whitespace-pre-wrap"></div> 
     </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-        import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+    <script>
+        // המפתחות שלך מפיירבייס
+        const API_KEY = "AIzaSyB89Uiy2id8pEOxRZEmPaIq94wHaNybOYw";
+        const PROJECT_ID = "gate-app-a8c86";
 
-        // החיבור שלך לפיירבייס
-        const firebaseConfig = {
-            apiKey: "AIzaSyB89Uiy2id8pEOxRZEmPaIq94wHaNybOYw",
-            authDomain: "gate-app-a8c86.firebaseapp.com",
-            projectId: "gate-app-a8c86",
-            storageBucket: "gate-app-a8c86.firebasestorage.app",
-            messagingSenderId: "127100922909",
-            appId: "1:127100922909:web:9d2f17bd83af386d14eaf4"
-        };
-        
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-
-        function showError(msg) {
+        function showError(title, details) {
             const errBox = document.getElementById('errorBox');
-            errBox.innerText += "\n" + msg;
+            let errorText = "❌ " + title + "\n\n" + details;
+            
+            // תרגום שגיאות נפוצות של גוגל לעברית
+            if(details.includes("PERMISSION_DENIED")) {
+                errorText += "\n\n💡 פתרון: ה-Rules של פיירבייס חוסמים את ההעלאה! יש להיכנס ל-Firebase -> Firestore -> Rules ולשנות ל: allow read, write: if true;";
+            } else if (details.includes("NOT_FOUND")) {
+                errorText += "\n\n💡 פתרון: מסד הנתונים טרם נוצר! יש ללחוץ על Create Database במסך ה-Firestore בפיירבייס.";
+            }
+
+            errBox.innerText = errorText;
             errBox.classList.remove('hidden');
-            document.getElementById('status').innerText = "התרחשה שגיאה! ❌";
         }
 
         document.getElementById('fileUpload').addEventListener('change', (e) => {
-            try {
-                document.getElementById('status').innerText = "קורא את הקובץ... ⏳";
-                document.getElementById('errorBox').classList.add('hidden');
-                document.getElementById('errorBox').innerText = "";
-                
-                const file = e.target.files[0];
-                const reader = new FileReader();
-                
-                reader.onload = (evt) => {
-                    try {
-                        const data = new Uint8Array(evt.target.result);
-                        const workbook = XLSX.read(data, {type: 'array'});
-                        const sheetData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-                        uploadData(sheetData);
-                    } catch(err) {
-                        showError("שגיאה בפענוח קובץ האקסל: " + err.message);
-                    }
-                };
-                
-                // שיטה בטוחה יותר לקריאת קבצים
-                reader.readAsArrayBuffer(file);
-            } catch (err) {
-                showError("שגיאה בקריאת הקובץ מהמחשב: " + err.message);
-            }
+            document.getElementById('status').innerText = "מפענח את הקובץ... ⏳";
+            document.getElementById('errorBox').classList.add('hidden');
+            
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            
+            reader.onload = (evt) => {
+                try {
+                    const data = new Uint8Array(evt.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const sheetData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                    uploadDataDirectly(sheetData);
+                } catch(err) {
+                    showError("הקובץ פגום או שאינו אקסל תקין", err.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
         });
 
-        async function uploadData(data) {
-            document.getElementById('status').innerText = `מנסה להעלות ${data.length} שורות לענן... ⏳`;
+        async function uploadDataDirectly(data) {
             let count = 0;
+            const validRows = data.filter(r => r['שם משפחה'] && r['שם משפחה'] !== 'סה"כ');
+            const total = validRows.length;
             
-            try {
-                for(let row of data) {
-                    // דילוג על שורות ריקות או שורות סיכום
-                    if(!row['שם משפחה'] || row['שם משפחה'] === 'סה"כ') continue;
-                    
-                    const id = String(row['מספר אישי'] || row['תעודת זהות'] || `temp_${count}`);
-                    
-                    const soldier = {
-                        id: id,
-                        tz: String(row['תעודת זהות'] || ''),
-                        firstName: String(row['שם פרטי'] || ''),
-                        lastName: String(row['שם משפחה'] || ''),
-                        fullName: `${row['שם פרטי'] || ''} ${row['שם משפחה'] || ''}`.trim(),
-                        role: String(row['עיסוק מיועד'] || ''),
-                        phone: String(row['מספר טלפון נייד עיקרי'] || ''),
-                        city: String(row['כתובת עיקרית - עיר'] || ''),
-                        type: 'pluga',
-                        cars: [] 
-                    };
+            for(let row of validRows) {
+                const id = String(row['מספר אישי'] || row['תעודת זהות'] || `temp_${count}`);
+                document.getElementById('status').innerText = `מעלה חייל ${count + 1} מתוך ${total}... ⏳`;
+                
+                const payload = {
+                    fields: {
+                        id: { stringValue: id },
+                        tz: { stringValue: String(row['תעודת זהות'] || '') },
+                        firstName: { stringValue: String(row['שם פרטי'] || '') },
+                        lastName: { stringValue: String(row['שם משפחה'] || '') },
+                        fullName: { stringValue: `${row['שם פרטי'] || ''} ${row['שם משפחה'] || ''}`.trim() },
+                        role: { stringValue: String(row['עיסוק מיועד'] || '') },
+                        phone: { stringValue: String(row['מספר טלפון נייד עיקרי'] || '') },
+                        city: { stringValue: String(row['כתובת עיקרית - עיר'] || '') },
+                        type: { stringValue: 'pluga' },
+                        cars: { arrayValue: { values: [] } }
+                    }
+                };
 
-                    await setDoc(doc(db, "pluga_members", id), soldier);
+                // שימוש במפתח ה-API ישירות בקישור כדי למנוע חסימה
+                const url = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/pluga_members?documentId=${id}&key=${API_KEY}`;
+                
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    if (!response.ok) {
+                        const errorDetails = await response.text();
+                        // אם הוא אומר שהמסמך כבר קיים (ALREADY_EXISTS), זה בסדר, נדלג ונמשיך
+                        if(errorDetails.includes("ALREADY_EXISTS")) {
+                            count++;
+                            continue;
+                        }
+                        throw new Error(errorDetails);
+                    }
                     count++;
+                } catch(err) {
+                    document.getElementById('status').innerText = "ההעלאה נעצרה עקב שגיאה מול גוגל.";
+                    showError(`העלאת החייל ${row['שם פרטי']} ${row['שם משפחה']} נכשלה!`, err.message);
+                    return; // עוצר את הלולאה במקרה של שגיאה כדי שלא ייתקע
                 }
-                document.getElementById('status').innerText = `ההעלאה הסתיימה! ${count} חיילים נשמרו במאגר בהצלחה. ✅`;
-            } catch(err) {
-                showError("שגיאה בחסימת פיירבייס: " + err.message + "\n(כנראה שה-Rules ב-Firebase עדיין חוסמים כתיבה)");
             }
+            document.getElementById('status').innerText = `ההעלאה הסתיימה בהצלחה! ✅ ${count} כרטיסים נטענו למאגר הש"ג.`;
         }
     </script>
 </body>

@@ -8,38 +8,41 @@
     <script>
         tailwind.config = { theme: { extend: { colors: { mainBg: '#1e293b', accent: '#38bdf8' } } } }
     </script>
-    <style>body { background-color: #0f172a; color: white; }</style>
+    <style>
+        body { background-color: #0f172a; color: white; font-family: system-ui, sans-serif; }
+    </style>
 </head>
 <body class="flex items-center justify-center min-h-screen p-4">
 
     <div class="bg-mainBg w-full max-w-md p-8 rounded-2xl shadow-[0_0_20px_rgba(56,189,248,0.2)] border border-slate-700 text-center">
         <h2 class="text-2xl font-bold text-accent mb-2">רישום רכב לפלוגה</h2>
-        <p class="text-slate-400 text-sm mb-6">הזן את פרטיך. הרכב יתווסף למאגר הש"ג ולא ימחק רכבים קודמים.</p>
+        <p class="text-slate-400 text-sm mb-6">בחר את שמך מהרשימה והזן את מספר הרכב שלך.</p>
 
         <div class="space-y-5 text-right">
             <div>
-                <label class="block text-sm font-semibold mb-1 text-slate-300">שם ושם משפחה</label>
-                <input type="text" id="soldierName" class="w-full p-4 bg-slate-800 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent">
+                <label class="block text-sm font-semibold mb-1 text-slate-300">בחר שם מלא:</label>
+                <!-- רשימה נפתחת שנטענת אוטומטית -->
+                <select id="soldierSelect" class="w-full p-4 bg-slate-800 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent">
+                    <option value="">טוען רשימת חיילים מהענן... ⏳</option>
+                </select>
             </div>
+            
             <div>
-                <label class="block text-sm font-semibold mb-1 text-slate-300">מספר אישי</label>
-                <input type="number" id="soldierId" class="w-full p-4 bg-slate-800 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent">
+                <label class="block text-sm font-semibold mb-1 text-slate-300">מספר רכב (ספרות בלבד)</label>
+                <input type="number" id="carNum" placeholder="למשל 1234567" class="w-full p-4 bg-slate-800 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent">
             </div>
-            <div>
-                <label class="block text-sm font-semibold mb-1 text-slate-300">מספר רכב</label>
-                <input type="number" id="carNum" class="w-full p-4 bg-slate-800 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-accent">
-            </div>
-            <button id="submitBtn" class="w-full bg-accent text-[#0f172a] py-4 rounded-xl font-bold text-lg hover:bg-sky-400 transition mt-2">שלח למאגר הש"ג</button>
+            
+            <button id="submitBtn" class="w-full bg-accent text-[#0f172a] py-4 rounded-xl font-bold text-lg hover:bg-sky-400 transition mt-2">הוסף רכב למערכת הש"ג</button>
         </div>
         
-        <div id="successMsg" class="hidden mt-4 bg-green-900/50 text-green-400 p-3 rounded border border-green-700 text-sm">
-            הנתונים נשלחו בהצלחה!
+        <div id="successMsg" class="hidden mt-4 bg-green-900/50 text-green-400 p-4 rounded border border-green-700 font-bold">
+            ✅ הרכב נוסף למאגר שלך בהצלחה! אפשר לסגור את החלון.
         </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-        import { getFirestore, doc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+        import { getFirestore, collection, getDocs, doc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyB89Uiy2id8pEOxRZEmPaIq94wHaNybOYw",
@@ -52,27 +55,55 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
+        // טעינת שמות החיילים ברגע שהדף עולה
+        async function loadSoldiers() {
+            const selectElement = document.getElementById('soldierSelect');
+            try {
+                const snap = await getDocs(collection(db, "pluga_members"));
+                let soldiers = [];
+                snap.forEach(doc => soldiers.push(doc.data()));
+                
+                // סידור הרשימה לפי א"ב
+                soldiers.sort((a, b) => a.fullName.localeCompare(b.fullName, 'he'));
+                
+                let html = '<option value="">-- בחר את שמך מהרשימה --</option>';
+                soldiers.forEach(s => {
+                    html += `<option value="${s.id}">${s.fullName}</option>`;
+                });
+                
+                selectElement.innerHTML = html;
+            } catch(e) {
+                selectElement.innerHTML = '<option value="">שגיאה בטעינת הרשימה. פנה לקצין</option>';
+                console.error(e);
+            }
+        }
+        
+        loadSoldiers(); // קריאה לפונקציה מיד
+
+        // שליחת הטופס
         document.getElementById('submitBtn').addEventListener('click', async () => {
-            const name = document.getElementById('soldierName').value.trim();
-            const id = document.getElementById('soldierId').value.trim();
+            const selectedId = document.getElementById('soldierSelect').value;
             const car = document.getElementById('carNum').value.trim();
             
-            if(!name || !id || !car) { alert("נא למלא את כל השדות."); return; }
+            if(!selectedId) { alert("חובה לבחור שם מהרשימה."); return; }
+            if(!car) { alert("חובה להזין מספר רכב."); return; }
             
             try {
-                const soldierRef = doc(db, "pluga_members", id);
+                // עדכון הרכב תחת כרטיס החייל המדויק
+                const soldierRef = doc(db, "pluga_members", selectedId);
                 await updateDoc(soldierRef, { cars: arrayUnion(car) });
                 
                 document.getElementById('successMsg').classList.remove('hidden');
+                
+                // איפוס מספר הרכב (השם נשאר במקרה והוא רוצה להוסיף עוד רכב)
+                document.getElementById('carNum').value = '';
+                
                 setTimeout(() => {
-                    document.getElementById('soldierName').value = '';
-                    document.getElementById('soldierId').value = '';
-                    document.getElementById('carNum').value = '';
                     document.getElementById('successMsg').classList.add('hidden');
-                }, 3000);
+                }, 5000);
             } catch(error) {
                 console.error(error);
-                alert("שגיאה: ודא שהמספר האישי נכון ותואם למאגר שלנו.");
+                alert("שגיאת תקשורת מול הענן. נסה שנית.");
             }
         });
     </script>

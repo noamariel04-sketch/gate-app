@@ -29,23 +29,25 @@
         <div class="max-w-4xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
             <h1 class="text-2xl font-black text-neonBlue tracking-wider">GATE<span class="text-white">CONTROL</span></h1>
             <div class="flex gap-3">
-                <button id="btnGuard" class="bg-slate-700 text-white px-5 py-2 rounded-md font-semibold border border-slate-600 transition">חיפוש ואימות</button>
-                <button id="btnGuest" class="bg-slate-700 text-white px-5 py-2 rounded-md font-semibold border border-slate-600 transition">רישום אורח מזדמן</button>
+                <button id="btnGuard" class="bg-slate-700 text-white px-5 py-2 rounded-md font-semibold border border-slate-600 transition hover:bg-slate-600">חיפוש ואימות</button>
+                <button id="btnGuest" class="bg-slate-700 text-white px-5 py-2 rounded-md font-semibold border border-slate-600 transition hover:bg-slate-600">רישום אורח מזדמן</button>
             </div>
         </div>
     </nav>
 
     <main class="max-w-4xl mx-auto p-4 mt-4">
 
+        <!-- מסך השומרים -->
         <div id="guardTab" class="tab-content active bg-panelBg p-6 rounded-xl shadow-2xl border border-slate-700">
             <h2 class="text-xl font-bold mb-4 text-neonBlue">איתור נכנסים / רכב חוסם</h2>
             <div class="flex flex-col md:flex-row gap-3 mb-6">
-                <input type="text" id="searchInput" placeholder="מס' רכב או שם לחייל/אורח..." class="w-full p-4 bg-slate-800 border border-slate-600 rounded-lg text-lg text-white focus:outline-none focus:border-neonBlue transition placeholder-slate-400">
+                <input type="text" id="searchInput" placeholder="הכנס מס' רכב או שם לחייל/אורח..." class="w-full p-4 bg-slate-800 border border-slate-600 rounded-lg text-lg text-white focus:outline-none focus:border-neonBlue transition placeholder-slate-400">
                 <button id="searchBtn" class="bg-neonBlue text-darkBg px-8 py-4 rounded-lg font-black text-lg hover:bg-sky-400 transition shadow-[0_0_15px_rgba(56,189,248,0.4)]">חפש</button>
             </div>
             <div id="searchResultsArea" class="space-y-4"></div>
         </div>
 
+        <!-- מסך האורחים -->
         <div id="guestTab" class="tab-content bg-panelBg p-6 rounded-xl shadow-2xl border border-slate-700">
             <h2 class="text-xl font-bold mb-4 text-neonGreen">רישום כניסת גורם חוץ</h2>
             <div class="space-y-4">
@@ -74,6 +76,9 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
+        // זיכרון זמני לשאלות הזיהוי
+        window.currentSearchResults = {};
+
         document.getElementById('btnGuard').addEventListener('click', () => switchTab('guardTab'));
         document.getElementById('btnGuest').addEventListener('click', () => switchTab('guestTab'));
 
@@ -82,69 +87,112 @@
             document.getElementById(tabId).classList.add('active');
         }
 
-        // חיפוש חייל או אורח
+        // חיפוש מתקדם
         document.getElementById('searchBtn').addEventListener('click', async () => {
             const input = document.getElementById('searchInput').value.trim();
             const resultsArea = document.getElementById('searchResultsArea');
             if(!input) return;
             
-            resultsArea.innerHTML = '<p class="text-neonBlue">טוען נתונים מהענן...</p>';
+            resultsArea.innerHTML = '<p class="text-neonBlue text-center font-bold">מחפש נתונים בענן... ⏳</p>';
             let found = [];
+            window.currentSearchResults = {}; // איפוס זיכרון זמני
 
-            // שליפת פלוגה
-            const plugaSnap = await getDocs(collection(db, "pluga_members"));
-            plugaSnap.forEach(doc => {
-                const data = doc.data();
-                if((data.fullName && data.fullName.includes(input)) || (data.cars && data.cars.includes(input))) {
-                    found.push(data);
+            try {
+                // שליפת פלוגה
+                const plugaSnap = await getDocs(collection(db, "pluga_members"));
+                plugaSnap.forEach(doc => {
+                    const data = doc.data();
+                    if((data.fullName && data.fullName.includes(input)) || (data.cars && data.cars.includes(input))) {
+                        found.push(data);
+                    }
+                });
+
+                // שליפת אורחים
+                const guestSnap = await getDocs(collection(db, "guests"));
+                guestSnap.forEach(doc => {
+                    const data = doc.data();
+                    if((data.fullName && data.fullName.includes(input)) || (data.cars && data.cars.includes(input))) {
+                        found.push({...data, type: 'guest'});
+                    }
+                });
+
+                if(found.length === 0) {
+                    resultsArea.innerHTML = `<div class="p-4 bg-red-900/50 border border-red-500 rounded text-red-200">לא נמצאו תוצאות במסד הנתונים. ודא שהשם או המספר נכונים.</div>`;
+                    return;
                 }
-            });
 
-            // שליפת אורחים
-            const guestSnap = await getDocs(collection(db, "guests"));
-            guestSnap.forEach(doc => {
-                const data = doc.data();
-                if((data.fullName && data.fullName.includes(input)) || (data.cars && data.cars.includes(input))) {
-                    found.push({...data, type: 'guest'});
-                }
-            });
-
-            if(found.length === 0) {
-                resultsArea.innerHTML = `<div class="p-4 bg-red-900/50 border border-red-500 rounded text-red-200">לא נמצאו תוצאות במסד הנתונים.</div>`;
-                return;
-            }
-
-            resultsArea.innerHTML = '';
-            found.forEach((person, index) => {
-                const card = document.createElement('div');
-                card.className = "bg-slate-800 p-5 rounded-lg border border-slate-600 mb-4";
-                const phoneDisplay = person.phone ? person.phone : 'לא זמין';
-                
-                let html = `
-                    <div class="border-b border-slate-700 pb-3 mb-3">
-                        <h3 class="text-xl font-bold text-white flex items-center">${person.fullName}</h3>
-                        <p class="text-neonBlue mt-1 font-mono text-lg">📞 טלפון לאיתור: ${phoneDisplay}</p>
-                    </div>
-                `;
-
-                if(person.type === 'pluga') {
-                    html += `
-                        <div class="bg-slate-900 p-4 rounded-lg border border-slate-700 mb-4">
-                            <p class="text-lg font-bold text-slate-300">שאל: מה עיר המגורים שלך?</p>
-                            <p class="text-neonGreen mt-1">תשובה מצופה מהנהג: <span class="font-black">${person.city || 'לא ידוע'}</span></p>
-                        </div>
-                        <div class="flex gap-2 mb-4">
-                            <input type="text" id="newCar_${person.id}" placeholder="הוסף רכב..." class="w-full p-2 bg-slate-700 border border-slate-600 rounded text-white">
-                            <button onclick="window.addCar('${person.id}')" class="bg-slate-600 hover:bg-slate-500 text-white px-4 rounded font-bold transition">הוסף</button>
+                resultsArea.innerHTML = '';
+                found.forEach((person) => {
+                    // שמירת האדם בזיכרון לטובת כפתור "החלף שאלה"
+                    const personId = person.id || `guest_${Date.now()}`;
+                    window.currentSearchResults[personId] = person;
+                    
+                    const card = document.createElement('div');
+                    card.className = "bg-slate-800 p-5 rounded-lg border border-slate-600 mb-4";
+                    
+                    const phoneDisplay = person.phone ? person.phone : 'לא זמין';
+                    const carsDisplay = (person.cars && person.cars.length > 0) ? person.cars.join(' | ') : 'אין רכבים רשומים';
+                    const badge = person.type === 'pluga' ? '<span class="bg-blue-900 text-xs px-2 py-1 rounded ml-2 border border-blue-700">פלוגה</span>' : '<span class="bg-orange-900 text-xs px-2 py-1 rounded ml-2 border border-orange-700">אורח</span>';
+                    
+                    let html = `
+                        <div class="border-b border-slate-700 pb-3 mb-3">
+                            <h3 class="text-xl font-bold text-white flex items-center">${person.fullName} ${badge}</h3>
+                            <p class="text-slate-300 mt-2 font-mono">📞 טלפון לאיתור: ${phoneDisplay}</p>
+                            <div class="mt-2 bg-slate-700 p-2 rounded text-neonBlue font-bold">
+                                🚗 רכבים מורשים: <span class="text-white">${carsDisplay}</span>
+                            </div>
                         </div>
                     `;
-                }
 
-                html += `<button onclick="alert('✅ הכניסה אושרה ותועדה ביומן!');" class="w-full bg-neonBlue text-darkBg py-3 rounded font-black text-lg hover:bg-sky-400 transition">אמת והכנס ליומן</button>`;
-                card.innerHTML = html;
-                resultsArea.appendChild(card);
-            });
+                    // שאלות זיהוי רק לחיילי הפלוגה
+                    if(person.type === 'pluga') {
+                        html += `
+                            <div class="bg-slate-900 p-4 rounded-lg border border-slate-700 mb-4">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-slate-400 text-sm">אימות זהות בשער:</span>
+                                    <button onclick="window.changeQuestion('${personId}')" class="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded transition border border-slate-500">🔄 החלף שאלה</button>
+                                </div>
+                                <p class="text-lg font-bold text-slate-200" id="qLabel_${personId}">שאל: מה עיר המגורים שלך?</p>
+                                <p class="text-neonGreen mt-1 text-lg">תשובה מצופה: <span class="font-black" id="qAnswer_${personId}">${person.city || 'לא ידוע'}</span></p>
+                            </div>
+                            
+                            <div class="flex gap-2 mb-4">
+                                <input type="number" id="newCar_${personId}" placeholder="הוסף מס' רכב חדש (ללא רווחים)..." class="w-full p-3 bg-slate-700 border border-slate-600 rounded text-white focus:outline-none focus:border-neonBlue">
+                                <button onclick="window.addCar('${personId}')" class="bg-slate-600 hover:bg-slate-500 text-white px-6 rounded font-bold transition border border-slate-500">הוסף</button>
+                            </div>
+                        `;
+                    }
+
+                    html += `<button onclick="alert('✅ הכניסה אושרה ותועדה ביומן!'); document.getElementById('searchResultsArea').innerHTML='';" class="w-full bg-neonBlue text-darkBg py-3 rounded font-black text-lg hover:bg-sky-400 transition mt-2">אמת כניסה והכנס ליומן</button>`;
+                    card.innerHTML = html;
+                    resultsArea.appendChild(card);
+                });
+
+            } catch(e) {
+                resultsArea.innerHTML = `<p class="text-red-500">שגיאת תקשורת: ${e.message}</p>`;
+            }
         });
+
+        // פונקציית החלפת שאלות דינמית
+        window.changeQuestion = function(id) {
+            const person = window.currentSearchResults[id];
+            if(!person) return;
+            
+            // מאגר השאלות
+            const questions = [
+                { q: 'מה עיר המגורים שלך?', a: person.city || 'לא מעודכן במערכת' },
+                { q: 'מה תאריך או שנת הלידה שלך?', a: person.birthDate || 'לא מעודכן במערכת' },
+                { q: 'מהן 3 הספרות האחרונות של הנייד שלך?', a: person.phone ? person.phone.slice(-3) : 'לא מעודכן במערכת' }
+            ];
+
+            // ניהול אינדקס שאלה כדי לעבור ביניהן בלולאה
+            if(person.currentQIndex === undefined) person.currentQIndex = 0;
+            person.currentQIndex = (person.currentQIndex + 1) % questions.length;
+            
+            const nextQ = questions[person.currentQIndex];
+            document.getElementById(`qLabel_${id}`).innerText = 'שאל: ' + nextQ.q;
+            document.getElementById(`qAnswer_${id}`).innerText = nextQ.a;
+        };
 
         // הוספת רכב לחייל בשער
         window.addCar = async function(id) {
@@ -152,8 +200,9 @@
             if(!input.value) return;
             try {
                 await updateDoc(doc(db, "pluga_members", id), { cars: arrayUnion(input.value) });
-                alert("🚗 הרכב נוסף למאגר בהצלחה!");
+                alert("🚗 הרכב נוסף למאגר בהצלחה! בחיפוש הבא הוא יופיע.");
                 input.value = '';
+                document.getElementById('searchBtn').click(); // רענון המסך מיד
             } catch(e) { console.error(e); }
         };
 
@@ -169,7 +218,7 @@
                 await setDoc(doc(db, "guests", guestId), {
                     fullName: name, phone: phone, cars: [car], type: 'guest'
                 });
-                alert("✅ כרטיס אורח נוצר ונשמר בענן!");
+                alert("✅ כרטיס אורח נוצר ונשמר בענן בהצלחה!");
                 document.getElementById('guestName').value = '';
                 document.getElementById('guestPhone').value = '';
                 document.getElementById('guestCar').value = '';
